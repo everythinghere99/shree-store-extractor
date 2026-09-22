@@ -46,6 +46,7 @@ function extractASIN(url) {
 
     for (const pattern of patterns) {
         const match = url.match(pattern);
+
         if (match) {
             return match[1].toUpperCase();
         }
@@ -113,6 +114,7 @@ app.get('/api/health', (req, res) => {
 
 // Main product extraction API
 app.get('/api/extract-product', async (req, res) => {
+
     const rawUrl = req.query.url;
 
     if (!rawUrl || !/^https?:\/\//i.test(rawUrl)) {
@@ -123,6 +125,7 @@ app.get('/api/extract-product', async (req, res) => {
     }
 
     try {
+
         let finalUrl = rawUrl;
         let response = null;
 
@@ -130,6 +133,7 @@ app.get('/api/extract-product', async (req, res) => {
         // 1. Fetch URL + follow redirects
         // --------------------------------------------------
         try {
+
             response = await axios.get(rawUrl, {
                 headers: getHeaders(),
                 timeout: 20000,
@@ -147,6 +151,7 @@ app.get('/api/extract-product', async (req, res) => {
             }
 
         } catch (error) {
+
             console.error(
                 'Initial URL fetch error:',
                 error.message
@@ -169,7 +174,8 @@ app.get('/api/extract-product', async (req, res) => {
         // --------------------------------------------------
         // 2. Detect platform
         // --------------------------------------------------
-        const lowerUrl = finalUrl.toLowerCase();
+        const lowerUrl =
+            finalUrl.toLowerCase();
 
         const isAmazon =
             lowerUrl.includes('amazon.') ||
@@ -206,7 +212,9 @@ app.get('/api/extract-product', async (req, res) => {
             typeof response.data === 'string' &&
             response.data.length > 0
         ) {
-            const $ = cheerio.load(response.data);
+
+            const $ =
+                cheerio.load(response.data);
 
             const pageTitle =
                 $('title')
@@ -227,6 +235,7 @@ app.get('/api/extract-product', async (req, res) => {
             if (isAmazon) {
 
                 if (isAmazonBotPage) {
+
                     console.log(
                         'Amazon bot page detected. Trying Jina...'
                     );
@@ -235,6 +244,7 @@ app.get('/api/extract-product', async (req, res) => {
                         await fetchViaJina(finalUrl);
 
                     if (jinaData) {
+
                         extractedData.title =
                             jinaData.title || '';
 
@@ -244,6 +254,7 @@ app.get('/api/extract-product', async (req, res) => {
                         extractedData.image =
                             jinaData.image || '';
                     }
+
                 } else {
 
                     // Title
@@ -291,7 +302,9 @@ app.get('/api/extract-product', async (req, res) => {
                         '';
 
                     if (dynamicImgStr) {
+
                         try {
+
                             const images =
                                 JSON.parse(dynamicImgStr);
 
@@ -302,7 +315,9 @@ app.get('/api/extract-product', async (req, res) => {
                                 extractedData.image =
                                     imageUrls[0];
                             }
+
                         } catch (error) {
+
                             console.log(
                                 'Dynamic image JSON parse failed.'
                             );
@@ -311,6 +326,7 @@ app.get('/api/extract-product', async (req, res) => {
 
                     // OpenGraph image fallback
                     if (!extractedData.image) {
+
                         extractedData.image =
                             $('meta[property="og:image"]')
                                 .attr('content') ||
@@ -345,6 +361,7 @@ app.get('/api/extract-product', async (req, res) => {
                     $('script[type="application/ld+json"]');
 
                 ldScripts.each((index, element) => {
+
                     if (extractedData.price) return;
 
                     const text =
@@ -353,11 +370,16 @@ app.get('/api/extract-product', async (req, res) => {
                     if (!text) return;
 
                     try {
+
                         const json =
                             JSON.parse(text);
 
                         const findPrice = (obj) => {
-                            if (!obj || typeof obj !== 'object') {
+
+                            if (
+                                !obj ||
+                                typeof obj !== 'object'
+                            ) {
                                 return null;
                             }
 
@@ -375,6 +397,7 @@ app.get('/api/extract-product', async (req, res) => {
                             for (
                                 const key of Object.keys(obj)
                             ) {
+
                                 const result =
                                     findPrice(obj[key]);
 
@@ -390,6 +413,7 @@ app.get('/api/extract-product', async (req, res) => {
                             findPrice(json);
 
                         if (foundPrice) {
+
                             extractedData.price =
                                 String(foundPrice)
                                     .replace(/[^\d.]/g, '');
@@ -402,6 +426,7 @@ app.get('/api/extract-product', async (req, res) => {
 
                 // Text fallback
                 if (!extractedData.price) {
+
                     const bodyText =
                         $('body').text();
 
@@ -411,6 +436,7 @@ app.get('/api/extract-product', async (req, res) => {
                         );
 
                     if (priceMatch) {
+
                         extractedData.price =
                             priceMatch[1]
                                 .replace(/,/g, '');
@@ -442,6 +468,7 @@ app.get('/api/extract-product', async (req, res) => {
 
                 // Image fallback from ASIN
                 if (!extractedData.image) {
+
                     extractedData.image =
                         `https://images-na.ssl-images-amazon.com/images/P/${extractedData.asin}.01._SCLZZZZZZZ_SX900_.jpg`;
                 }
@@ -463,9 +490,12 @@ app.get('/api/extract-product', async (req, res) => {
                 Number.isFinite(numericPrice) &&
                 numericPrice > 20
             ) {
+
                 extractedData.price =
                     `₹${Math.round(numericPrice)}`;
+
             } else {
+
                 extractedData.price = '';
             }
         }
@@ -478,6 +508,7 @@ app.get('/api/extract-product', async (req, res) => {
             !extractedData.image &&
             !extractedData.price
         ) {
+
             return res.status(422).json({
                 success: false,
                 error:
@@ -510,13 +541,10 @@ app.get('/api/extract-product', async (req, res) => {
     }
 });
 
-// --------------------------------------------------
-// Start server
-// --------------------------------------------------
-/* =========================================================
-   SHREE STORE — GitHub Product Auto-Add
-   Paste this block BEFORE the existing app.listen(...) section.
-   ========================================================= */
+
+// =========================================================
+// SHREE STORE — GitHub Product Auto-Add
+// =========================================================
 
 const GITHUB_OWNER =
     process.env.GITHUB_OWNER || 'everythinghere99';
@@ -536,15 +564,25 @@ const GITHUB_TOKEN =
 const ADMIN_KEY =
     process.env.ADMIN_KEY || '';
 
+
+// =========================================================
+// Product Description Generator
+// =========================================================
+
 function makeProductDescription(name) {
 
-    const title = String(name || 'Product')
-        .replace(/\s+/g, ' ')
-        .trim();
+    const title =
+        String(name || 'Product')
+            .replace(/\s+/g, ' ')
+            .trim();
 
-    const lower = title.toLowerCase();
+    const lower =
+        title.toLowerCase();
 
-    if (lower.includes('watch') || lower.includes('smartwatch')) {
+    if (
+        lower.includes('watch') ||
+        lower.includes('smartwatch')
+    ) {
         return `Smart ${title} with useful everyday features and a stylish, convenient design.`;
     }
 
@@ -578,14 +616,23 @@ function makeProductDescription(name) {
         return `Elegant ${title} that adds a simple and stylish touch to your everyday look.`;
     }
 
-    if (lower.includes('lamp') || lower.includes('light')) {
+    if (
+        lower.includes('lamp') ||
+        lower.includes('light')
+    ) {
         return `Useful ${title} with a practical design for a cozy and convenient setup.`;
     }
 
     return `Useful ${title} with a stylish design, made for convenient everyday use.`;
 }
 
+
+// =========================================================
+// Safe JS String
+// =========================================================
+
 function jsString(value) {
+
     return JSON.stringify(
         String(value ?? '')
             .replace(/\r?\n/g, ' ')
@@ -593,54 +640,94 @@ function jsString(value) {
     );
 }
 
-function buildProductCode({ id, name, image, price, affiliateLink }) {
 
-    const description = makeProductDescription(name);
-    const cleanPrice = String(price || '').trim() || '₹0';
+// =========================================================
+// Build Product Object Code
+// =========================================================
 
-    const imageUrls = String(image || '')
-        .split(/\r?\n|,/)
-        .map(x => x.trim())
-        .filter(Boolean);
+function buildProductCode({
+    id,
+    name,
+    image,
+    price,
+    affiliateLink
+}) {
 
-    const uniqueImages = [...new Set(imageUrls)];
+    const description =
+        makeProductDescription(name);
 
-    const imagesCode = uniqueImages.length
-        ? uniqueImages.map(url => `            ${jsString(url)}`).join(',\n')
-        : `            ${jsString('')}`;
+    const cleanPrice =
+        String(price || '').trim() || '₹0';
 
-    return `    {
-        id: ${jsString(id)},
-        name: ${jsString(name)},
-        images: [
+    const imageUrls =
+        String(image || '')
+            .split(/\r?\n|,/)
+            .map(x => x.trim())
+            .filter(Boolean);
+
+    const uniqueImages =
+        [...new Set(imageUrls)];
+
+    const imagesCode =
+        uniqueImages.length
+            ? uniqueImages
+                .map(
+                    url =>
+                        `        ${jsString(url)}`
+                )
+                .join(',\n')
+            : `        ${jsString('')}`;
+
+    return `{
+    id: ${jsString(id)},
+    name: ${jsString(name)},
+    images: [
 ${imagesCode}
-        ],
-        description: ${jsString(description)},
-        price: ${jsString(cleanPrice)},
-        affiliateLink: ${jsString(affiliateLink)}
-    }`;
+    ],
+    description: ${jsString(description)},
+    price: ${jsString(cleanPrice)},
+    affiliateLink: ${jsString(affiliateLink)}
+},`;
 }
+
+
+// =========================================================
+// Find Next SHREE-P ID
+// =========================================================
 
 function findNextShreeProductId(script) {
 
     // ONLY SHREE-P<number> IDs are scanned.
     // SHREE-C..., SHREE-H..., etc. are ignored.
+
     const affiliateStart =
-        script.indexOf('const affiliateProducts = [');
+        script.indexOf(
+            'const affiliateProducts = ['
+        );
 
     if (affiliateStart === -1) {
-        throw new Error('affiliateProducts array not found in script.js');
+        throw new Error(
+            'affiliateProducts array not found in script.js'
+        );
     }
 
     const affiliateEnd =
-        script.indexOf('\n];', affiliateStart);
+        script.indexOf(
+            '\n];',
+            affiliateStart
+        );
 
     if (affiliateEnd === -1) {
-        throw new Error('affiliateProducts closing ]; not found.');
+        throw new Error(
+            'affiliateProducts closing ]; not found.'
+        );
     }
 
     const affiliateBlock =
-        script.slice(affiliateStart, affiliateEnd);
+        script.slice(
+            affiliateStart,
+            affiliateEnd
+        );
 
     const matches = [
         ...affiliateBlock.matchAll(
@@ -651,18 +738,33 @@ function findNextShreeProductId(script) {
     let highest = 0;
 
     for (const match of matches) {
-        const number = Number.parseInt(match[1], 10);
 
-        if (Number.isInteger(number) && number > highest) {
+        const number =
+            Number.parseInt(
+                match[1],
+                10
+            );
+
+        if (
+            Number.isInteger(number) &&
+            number > highest
+        ) {
             highest = number;
         }
     }
 
     return {
-        id: `SHREE-P${String(highest + 1).padStart(2, '0')}`,
+        id:
+            `SHREE-P${String(highest + 1).padStart(2, '0')}`,
+
         affiliateEnd
     };
 }
+
+
+// =========================================================
+// Get script.js From GitHub
+// =========================================================
 
 async function getGitHubFile() {
 
@@ -675,118 +777,298 @@ async function getGitHubFile() {
     const apiUrl =
         `https://api.github.com/repos/${encodeURIComponent(GITHUB_OWNER)}/${encodeURIComponent(GITHUB_REPO)}/contents/${GITHUB_FILE_PATH}`;
 
-    const response = await axios.get(apiUrl, {
-        headers: {
-            Authorization: `Bearer ${GITHUB_TOKEN}`,
-            Accept: 'application/vnd.github+json',
-            'X-GitHub-Api-Version': '2022-11-28',
-            'User-Agent': 'Shree-Store-Extractor'
-        },
-        params: { ref: GITHUB_BRANCH },
-        timeout: 20000
-    });
-
-    return {
-        apiUrl,
-        sha: response.data.sha,
-        content: Buffer.from(response.data.content, 'base64').toString('utf8')
-    };
-}
-
-app.post('/api/add-product-to-github', async (req, res) => {
-
-    try {
-
-        const requestKey =
-            String(req.get('X-Admin-Key') || '').trim();
-
-        if (!ADMIN_KEY || !requestKey || requestKey !== ADMIN_KEY) {
-            return res.status(401).json({
-                success: false,
-                error: 'Invalid admin key.'
-            });
-        }
-
-        const { name, price, image, affiliateLink } = req.body || {};
-
-        if (!name || !image || !affiliateLink) {
-            return res.status(400).json({
-                success: false,
-                error: 'Name, image and affiliate link are required.'
-            });
-        }
-
-        // ALWAYS read the latest script.js before choosing the ID.
-        const githubFile = await getGitHubFile();
-        const script = githubFile.content;
-        const sha = githubFile.sha;
-
-        const { id, affiliateEnd } =
-            findNextShreeProductId(script);
-
-        const newProduct = buildProductCode({
-            id,
-            name,
-            image,
-            price,
-            affiliateLink
-        });
-
-        // Insert only inside affiliateProducts, immediately before its ];
-        const before = script.slice(0, affiliateEnd).replace(/\s+$/, '');
-        const after = script.slice(affiliateEnd);
-
-        const updatedScript =
-            `${before},\n${newProduct}${after}`;
-
-        await axios.put(
-            githubFile.apiUrl,
-            {
-                message: `Add ${id} to affiliateProducts`,
-                content: Buffer.from(updatedScript, 'utf8').toString('base64'),
-                sha,
-                branch: GITHUB_BRANCH
-            },
+    const response =
+        await axios.get(
+            apiUrl,
             {
                 headers: {
-                    Authorization: `Bearer ${GITHUB_TOKEN}`,
-                    Accept: 'application/vnd.github+json',
-                    'X-GitHub-Api-Version': '2022-11-28',
-                    'User-Agent': 'Shree-Store-Extractor'
+                    Authorization:
+                        `Bearer ${GITHUB_TOKEN}`,
+
+                    Accept:
+                        'application/vnd.github+json',
+
+                    'X-GitHub-Api-Version':
+                        '2022-11-28',
+
+                    'User-Agent':
+                        'Shree-Store-Extractor'
                 },
+
+                params: {
+                    ref: GITHUB_BRANCH
+                },
+
                 timeout: 20000
             }
         );
 
-        return res.json({
-            success: true,
-            productId: id,
-            message: `${id} added successfully to ${GITHUB_FILE_PATH}.`
-        });
+    return {
+        apiUrl,
+        sha: response.data.sha,
 
-    } catch (error) {
+        content:
+            Buffer
+                .from(
+                    response.data.content,
+                    'base64'
+                )
+                .toString('utf8')
+    };
+}
 
-        console.error(
-            'GitHub product update error:',
-            error.response?.data || error.message
+
+// =========================================================
+// NEW: Generate Product Code
+// =========================================================
+//
+// This endpoint:
+// - Reads latest script.js
+// - Finds next SHREE-P ID
+// - Ignores SHREE-C IDs
+// - Generates ready-to-paste JS object
+// - DOES NOT modify GitHub
+//
+// =========================================================
+
+app.post(
+    '/api/generate-product-code',
+    async (req, res) => {
+
+        try {
+
+            const {
+                name,
+                price,
+                image,
+                affiliateLink
+            } = req.body || {};
+
+            if (
+                !name ||
+                !image ||
+                !affiliateLink
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    error:
+                        'Name, image and affiliate link are required.'
+                });
+            }
+
+            // Always read latest script.js
+            const githubFile =
+                await getGitHubFile();
+
+            const {
+                id
+            } =
+                findNextShreeProductId(
+                    githubFile.content
+                );
+
+            const code =
+                buildProductCode({
+                    id,
+                    name,
+                    image,
+                    price,
+                    affiliateLink
+                });
+
+            return res.json({
+                success: true,
+                productId: id,
+                code
+            });
+
+        } catch (error) {
+
+            console.error(
+                'Generate product code error:',
+                error.response?.data ||
+                error.message
+            );
+
+            return res.status(500).json({
+                success: false,
+                error:
+                    error.response?.data?.message ||
+                    error.message ||
+                    'Product code generation failed.'
+            });
+        }
+    }
+);
+
+
+// =========================================================
+// Add Product Directly To GitHub
+// =========================================================
+
+app.post(
+    '/api/add-product-to-github',
+    async (req, res) => {
+
+        try {
+
+            const requestKey =
+                String(
+                    req.get('X-Admin-Key') || ''
+                ).trim();
+
+            if (
+                !ADMIN_KEY ||
+                !requestKey ||
+                requestKey !== ADMIN_KEY
+            ) {
+
+                return res.status(401).json({
+                    success: false,
+                    error: 'Invalid admin key.'
+                });
+            }
+
+            const {
+                name,
+                price,
+                image,
+                affiliateLink
+            } = req.body || {};
+
+            if (
+                !name ||
+                !image ||
+                !affiliateLink
+            ) {
+
+                return res.status(400).json({
+                    success: false,
+                    error:
+                        'Name, image and affiliate link are required.'
+                });
+            }
+
+            // ALWAYS read latest script.js
+            // before choosing the ID.
+            const githubFile =
+                await getGitHubFile();
+
+            const script =
+                githubFile.content;
+
+            const sha =
+                githubFile.sha;
+
+            const {
+                id,
+                affiliateEnd
+            } =
+                findNextShreeProductId(
+                    script
+                );
+
+            const newProduct =
+                buildProductCode({
+                    id,
+                    name,
+                    image,
+                    price,
+                    affiliateLink
+                });
+
+            // Insert only inside affiliateProducts
+            const before =
+                script
+                    .slice(0, affiliateEnd)
+                    .replace(/\s+$/, '');
+
+            const after =
+                script.slice(affiliateEnd);
+
+            const updatedScript =
+                `${before},\n${newProduct}${after}`;
+
+            await axios.put(
+                githubFile.apiUrl,
+                {
+                    message:
+                        `Add ${id} to affiliateProducts`,
+
+                    content:
+                        Buffer
+                            .from(
+                                updatedScript,
+                                'utf8'
+                            )
+                            .toString('base64'),
+
+                    sha,
+
+                    branch:
+                        GITHUB_BRANCH
+                },
+                {
+                    headers: {
+                        Authorization:
+                            `Bearer ${GITHUB_TOKEN}`,
+
+                        Accept:
+                            'application/vnd.github+json',
+
+                        'X-GitHub-Api-Version':
+                            '2022-11-28',
+
+                        'User-Agent':
+                            'Shree-Store-Extractor'
+                    },
+
+                    timeout: 20000
+                }
+            );
+
+            return res.json({
+                success: true,
+                productId: id,
+                message:
+                    `${id} added successfully to ${GITHUB_FILE_PATH}.`
+            });
+
+        } catch (error) {
+
+            console.error(
+                'GitHub product update error:',
+                error.response?.data ||
+                error.message
+            );
+
+            return res.status(500).json({
+                success: false,
+                error:
+                    error.response?.data?.message ||
+                    error.message ||
+                    'GitHub update failed.'
+            });
+        }
+    }
+);
+
+
+// =========================================================
+// Start Server
+// =========================================================
+
+app.listen(
+    PORT,
+    () => {
+
+        console.log(
+            `🚀 Server running on http://localhost:${PORT}`
         );
 
-        return res.status(500).json({
-            success: false,
-            error:
-                error.response?.data?.message ||
-                error.message ||
-                'GitHub update failed.'
-        });
+        console.log(
+            `📦 Admin Panel: http://localhost:${PORT}/admin.html`
+        );
     }
-});
-
-app.listen(PORT, () => {
-    console.log(
-        `🚀 Server running on http://localhost:${PORT}`
-    );
-
-    console.log(
-        `📦 Admin Panel: http://localhost:${PORT}/admin.html`
-    );
-});
+);
