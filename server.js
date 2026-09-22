@@ -513,6 +513,274 @@ app.get('/api/extract-product', async (req, res) => {
 // --------------------------------------------------
 // Start server
 // --------------------------------------------------
+/* =========================================================
+   SHREE STORE — GitHub Product Auto-Add
+   Paste this block BEFORE the existing app.listen(...) section.
+   ========================================================= */
+
+const GITHUB_OWNER =
+    process.env.GITHUB_OWNER || 'everythinghere99';
+
+const GITHUB_REPO =
+    process.env.GITHUB_REPO || 'everythinghere99.github.io';
+
+const GITHUB_BRANCH =
+    process.env.GITHUB_BRANCH || 'main';
+
+const GITHUB_FILE_PATH =
+    process.env.GITHUB_FILE_PATH || 'script.js';
+
+const GITHUB_TOKEN =
+    process.env.GITHUB_TOKEN || '';
+
+const ADMIN_KEY =
+    process.env.ADMIN_KEY || '';
+
+function makeProductDescription(name) {
+
+    const title = String(name || 'Product')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const lower = title.toLowerCase();
+
+    if (lower.includes('watch') || lower.includes('smartwatch')) {
+        return `Smart ${title} with useful everyday features and a stylish, convenient design.`;
+    }
+
+    if (
+        lower.includes('dress') ||
+        lower.includes('kurti') ||
+        lower.includes('shirt') ||
+        lower.includes('top') ||
+        lower.includes('pant') ||
+        lower.includes('jogger') ||
+        lower.includes('wear')
+    ) {
+        return `Stylish ${title} designed for a comfortable fit and an easy everyday look.`;
+    }
+
+    if (
+        lower.includes('shoe') ||
+        lower.includes('sandal') ||
+        lower.includes('slipper')
+    ) {
+        return `Comfortable ${title} made for everyday use with a practical and stylish look.`;
+    }
+
+    if (
+        lower.includes('earring') ||
+        lower.includes('jewellery') ||
+        lower.includes('jewelry') ||
+        lower.includes('necklace') ||
+        lower.includes('bracelet')
+    ) {
+        return `Elegant ${title} that adds a simple and stylish touch to your everyday look.`;
+    }
+
+    if (lower.includes('lamp') || lower.includes('light')) {
+        return `Useful ${title} with a practical design for a cozy and convenient setup.`;
+    }
+
+    return `Useful ${title} with a stylish design, made for convenient everyday use.`;
+}
+
+function jsString(value) {
+    return JSON.stringify(
+        String(value ?? '')
+            .replace(/\r?\n/g, ' ')
+            .trim()
+    );
+}
+
+function buildProductCode({ id, name, image, price, affiliateLink }) {
+
+    const description = makeProductDescription(name);
+    const cleanPrice = String(price || '').trim() || '₹0';
+
+    const imageUrls = String(image || '')
+        .split(/\r?\n|,/)
+        .map(x => x.trim())
+        .filter(Boolean);
+
+    const uniqueImages = [...new Set(imageUrls)];
+
+    const imagesCode = uniqueImages.length
+        ? uniqueImages.map(url => `            ${jsString(url)}`).join(',\n')
+        : `            ${jsString('')}`;
+
+    return `    {
+        id: ${jsString(id)},
+        name: ${jsString(name)},
+        images: [
+${imagesCode}
+        ],
+        description: ${jsString(description)},
+        price: ${jsString(cleanPrice)},
+        affiliateLink: ${jsString(affiliateLink)}
+    }`;
+}
+
+function findNextShreeProductId(script) {
+
+    // ONLY SHREE-P<number> IDs are scanned.
+    // SHREE-C..., SHREE-H..., etc. are ignored.
+    const affiliateStart =
+        script.indexOf('const affiliateProducts = [');
+
+    if (affiliateStart === -1) {
+        throw new Error('affiliateProducts array not found in script.js');
+    }
+
+    const affiliateEnd =
+        script.indexOf('\n];', affiliateStart);
+
+    if (affiliateEnd === -1) {
+        throw new Error('affiliateProducts closing ]; not found.');
+    }
+
+    const affiliateBlock =
+        script.slice(affiliateStart, affiliateEnd);
+
+    const matches = [
+        ...affiliateBlock.matchAll(
+            /id\s*:\s*["']SHREE-P(\d+)["']/g
+        )
+    ];
+
+    let highest = 0;
+
+    for (const match of matches) {
+        const number = Number.parseInt(match[1], 10);
+
+        if (Number.isInteger(number) && number > highest) {
+            highest = number;
+        }
+    }
+
+    return {
+        id: `SHREE-P${String(highest + 1).padStart(2, '0')}`,
+        affiliateEnd
+    };
+}
+
+async function getGitHubFile() {
+
+    if (!GITHUB_TOKEN) {
+        throw new Error(
+            'GITHUB_TOKEN is missing in Render environment variables.'
+        );
+    }
+
+    const apiUrl =
+        `https://api.github.com/repos/${encodeURIComponent(GITHUB_OWNER)}/${encodeURIComponent(GITHUB_REPO)}/contents/${GITHUB_FILE_PATH}`;
+
+    const response = await axios.get(apiUrl, {
+        headers: {
+            Authorization: `Bearer ${GITHUB_TOKEN}`,
+            Accept: 'application/vnd.github+json',
+            'X-GitHub-Api-Version': '2022-11-28',
+            'User-Agent': 'Shree-Store-Extractor'
+        },
+        params: { ref: GITHUB_BRANCH },
+        timeout: 20000
+    });
+
+    return {
+        apiUrl,
+        sha: response.data.sha,
+        content: Buffer.from(response.data.content, 'base64').toString('utf8')
+    };
+}
+
+app.post('/api/add-product-to-github', async (req, res) => {
+
+    try {
+
+        const requestKey =
+            String(req.get('X-Admin-Key') || '').trim();
+
+        if (!ADMIN_KEY || !requestKey || requestKey !== ADMIN_KEY) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid admin key.'
+            });
+        }
+
+        const { name, price, image, affiliateLink } = req.body || {};
+
+        if (!name || !image || !affiliateLink) {
+            return res.status(400).json({
+                success: false,
+                error: 'Name, image and affiliate link are required.'
+            });
+        }
+
+        // ALWAYS read the latest script.js before choosing the ID.
+        const githubFile = await getGitHubFile();
+        const script = githubFile.content;
+        const sha = githubFile.sha;
+
+        const { id, affiliateEnd } =
+            findNextShreeProductId(script);
+
+        const newProduct = buildProductCode({
+            id,
+            name,
+            image,
+            price,
+            affiliateLink
+        });
+
+        // Insert only inside affiliateProducts, immediately before its ];
+        const before = script.slice(0, affiliateEnd).replace(/\s+$/, '');
+        const after = script.slice(affiliateEnd);
+
+        const updatedScript =
+            `${before},\n${newProduct}${after}`;
+
+        await axios.put(
+            githubFile.apiUrl,
+            {
+                message: `Add ${id} to affiliateProducts`,
+                content: Buffer.from(updatedScript, 'utf8').toString('base64'),
+                sha,
+                branch: GITHUB_BRANCH
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${GITHUB_TOKEN}`,
+                    Accept: 'application/vnd.github+json',
+                    'X-GitHub-Api-Version': '2022-11-28',
+                    'User-Agent': 'Shree-Store-Extractor'
+                },
+                timeout: 20000
+            }
+        );
+
+        return res.json({
+            success: true,
+            productId: id,
+            message: `${id} added successfully to ${GITHUB_FILE_PATH}.`
+        });
+
+    } catch (error) {
+
+        console.error(
+            'GitHub product update error:',
+            error.response?.data || error.message
+        );
+
+        return res.status(500).json({
+            success: false,
+            error:
+                error.response?.data?.message ||
+                error.message ||
+                'GitHub update failed.'
+        });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(
         `🚀 Server running on http://localhost:${PORT}`
