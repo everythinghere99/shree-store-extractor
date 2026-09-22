@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Chepu Store — Product Extractor</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #fff8f0;
+      color: #3d2b1f;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: auto;
+      padding: 25px 18px 50px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 5px;
+      color: #7a3e20;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #8c7565;
+      margin-bottom: 25px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 18px;
+      padding: 22px;
+      margin-bottom: 20px;
+      box-shadow: 0 5px 20px rgba(100, 60, 30, 0.08);
+      border: 1px solid #f0dfd0;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      padding: 13px;
+      border: 1px solid #dbc7b8;
+      border-radius: 10px;
+      font-size: 15px;
+      outline: none;
+      margin-bottom: 15px;
+      background: #fffdfb;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: #c87545;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 13px 18px;
+      font-size: 15px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .extract-btn {
+      width: 100%;
+      background: #a9572d;
+      color: white;
+      margin-top: 5px;
+    }
+
+    .extract-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .reset-btn {
+      background: #eee1d7;
+      color: #5c3927;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .copy-btn {
+      background: #557a52;
+      color: white;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .status {
+      display: none;
+      padding: 12px;
+      border-radius: 10px;
+      margin-top: 15px;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .loading {
+      display: block;
+      background: #fff2d9;
+      color: #805c20;
+    }
+
+    .success {
+      display: block;
+      background: #e8f6e8;
+      color: #316331;
+    }
+
+    .error {
+      display: block;
+      background: #fde8e8;
+      color: #9b3030;
+    }
+
+    .result {
+      display: none;
+    }
+
+    .result.show {
+      display: block;
+    }
+
+    .preview-box {
+      text-align: center;
+      margin: 10px 0 20px;
+    }
+
+    .preview-box img {
+      max-width: 260px;
+      max-height: 300px;
+      border-radius: 12px;
+      object-fit: contain;
+      border: 1px solid #ead8ca;
+      background: white;
+      padding: 5px;
+    }
+
+    .small-note {
+      font-size: 12px;
+      color: #927d70;
+      margin-top: -8px;
+      margin-bottom: 15px;
+    }
+
+    .back {
+      display: block;
+      text-align: center;
+      color: #a9572d;
+      text-decoration: none;
+      margin-top: 20px;
+      font-weight: bold;
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        padding: 18px 12px 40px;
+      }
+
+      .card {
+        padding: 17px;
+      }
+
+      h1 {
+        font-size: 25px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <h1>🛍️ The Chepu Store</h1>
+  <div class="subtitle">Amazon / Meesho Product Extractor</div>
+
+  <div class="card">
+
+    <label for="product-page-url">Product Link</label>
+
+    <input
+      type="url"
+      id="product-page-url"
+      placeholder="Paste Amazon or Meesho product link..."
+      autocomplete="off"
+    >
+
+    <div class="small-note">
+      Example: Amazon short link, Amazon product link or Meesho product link
+    </div>
+
+    <button
+      class="extract-btn"
+      id="extract-btn"
+      onclick="extractDetails()"
+    >
+      🔍 Extract Details Instantly
+    </button>
+
+    <div id="status" class="status"></div>
+
+  </div>
+
+
+  <div class="card result" id="result">
+
+    <label>Product Name</label>
+    <input type="text" id="res-name">
+
+    <label>Price</label>
+    <input type="text" id="res-price">
+
+    <label>Direct HD Image Link</label>
+    <input type="text" id="res-img">
+
+    <div class="preview-box">
+      <img id="preview" src="" alt="Product Preview">
+    </div>
+
+    <label>Affiliate Link</label>
+    <input type="text" id="res-affiliate">
+
+    <button class="copy-btn" onclick="copyAllDetails()">
+      📋 Copy All Details
+    </button>
+
+  </div>
+
+
+  <button
+    class="reset-btn"
+    onclick="resetForm()"
+  >
+    🔄 Reset & Add Next Link
+  </button>
+
+  <a class="back" href="/">
+    ← Back to Store
+  </a>
+
+</div>
+
+
+<script>
+
+function generateSmartName(title) {
+
+  if (!title) return "";
+
+  let name = title
+    .replace(/\s+/g, " ")
+    .replace(/\|.*$/g, "")
+    .trim();
+
+  if (name.length > 90) {
+    name = name.substring(0, 90).trim();
+  }
+
+  return name;
+}
+
+
+function setStatus(message, type) {
+
+  const status = document.getElementById("status");
+
+  status.textContent = message;
+  status.className = "status " + type;
+}
+
+
+async function extractDetails() {
+
+  const input = document.getElementById("product-page-url");
+  const button = document.getElementById("extract-btn");
+  const result = document.getElementById("result");
+
+  const rawUrl = input.value.trim();
+
+  if (!rawUrl) {
+    setStatus("Please paste a product link first.", "error");
+    return;
+  }
+
+  try {
+
+    new URL(rawUrl);
+
+  } catch (error) {
+
+    setStatus("Please enter a valid URL.", "error");
+    return;
+  }
+
+
+  button.disabled = true;
+  button.textContent = "⏳ Extracting...";
+  result.classList.remove("show");
+
+  setStatus(
+    "Product details extract ho rahe hain... thoda wait karo.",
+    "loading"
+  );
+
+
+  try {
+
+    const response = await fetch(
+      "/api/extract-product?url=" +
+      encodeURIComponent(rawUrl)
+    );
+
+
+    let json;
+
+    try {
+      json = await response.json();
+    } catch (error) {
+      throw new Error(
+        "Server ne valid response nahi diya."
+      );
+    }
+
+
+    if (!response.ok || !json.success) {
+
+      throw new Error(
+        json.error ||
+        "Product details extract nahi ho paaye."
+      );
+    }
+
+
+    const data = json.data || {};
+
+
+    const productName =
+      generateSmartName(data.title) ||
+      "Product";
+
+
+    const price =
+      data.price ||
+      "";
+
+
+    const image =
+      data.image ||
+      "";
+
+
+    const affiliate =
+      data.affiliateUrl ||
+      data.finalUrl ||
+      rawUrl;
+
+
+    document.getElementById("res-name").value =
+      productName;
+
+
+    document.getElementById("res-price").value =
+      price;
+
+
+    document.getElementById("res-img").value =
+      image;
+
+
+    document.getElementById("res-affiliate").value =
+      affiliate;
+
+
+    const preview =
+      document.getElementById("preview");
+
+
+    if (image) {
+
+      preview.src = image;
+      preview.style.display = "inline-block";
+
+      preview.onerror = function() {
+        this.style.display = "none";
+      };
+
+    } else {
+
+      preview.style.display = "none";
+
+    }
+
+
+    result.classList.add("show");
+
+
+    setStatus(
+      "✅ Product details successfully extracted!",
+      "success"
+    );
+
+
+  } catch (error) {
+
+    console.error(error);
+
+    setStatus(
+      "❌ " + (
+        error.message ||
+        "Something went wrong."
+      ),
+      "error"
+    );
+
+  } finally {
+
+    button.disabled = false;
+    button.textContent =
+      "🔍 Extract Details Instantly";
+
+  }
+
+}
+
+
+async function copyAllDetails() {
+
+  const name =
+    document.getElementById("res-name").value.trim();
+
+  const price =
+    document.getElementById("res-price").value.trim();
+
+  const image =
+    document.getElementById("res-img").value.trim();
+
+  const affiliate =
+    document.getElementById("res-affiliate").value.trim();
+
+
+  const text =
+`Name: ${name}
+
+Price: ${price}
+
+Image: ${image}
+
+Affiliate Link: ${affiliate}`;
+
+
+  try {
+
+    await navigator.clipboard.writeText(text);
+
+    setStatus(
+      "📋 All details copied!",
+      "success"
+    );
+
+  } catch (error) {
+
+    const textarea =
+      document.createElement("textarea");
+
+    textarea.value = text;
+
+    document.body.appendChild(textarea);
+
+    textarea.select();
+
+    document.execCommand("copy");
+
+    textarea.remove();
+
+    setStatus(
+      "📋 All details copied!",
+      "success"
+    );
+
+  }
+
+}
+
+
+function resetForm() {
+
+  document.getElementById("product-page-url").value = "";
+
+  document.getElementById("res-name").value = "";
+
+  document.getElementById("res-price").value = "";
+
+  document.getElementById("res-img").value = "";
+
+  document.getElementById("res-affiliate").value = "";
+
+  document.getElementById("preview").src = "";
+
+  document.getElementById("preview").style.display = "inline-block";
+
+  document.getElementById("result").classList.remove("show");
+
+  document.getElementById("status").className = "status";
+
+  document.getElementById("status").textContent = "";
+
+  document.getElementById("product-page-url").focus();
+
+}
+
+</script>
+
+</body>
+</html>
