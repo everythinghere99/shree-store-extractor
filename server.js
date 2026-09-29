@@ -2686,16 +2686,22 @@ app.post(
                     affiliateLink
                 });
 
-            const updatedContent =
-                githubFile.content.slice(
-                    0,
-                    affiliateEnd
-                ) +
-                '\n' +
-                productCode +
-                githubFile.content.slice(
-                    affiliateEnd
-                );
+            const beforeAffiliateEnd =
+    githubFile.content.slice(
+        0,
+        affiliateEnd
+    ).replace(
+        /}\s*$/,
+        '},'
+    );
+
+const updatedContent =
+    beforeAffiliateEnd +
+    '\n' +
+    productCode +
+    githubFile.content.slice(
+        affiliateEnd
+    );
 
             const encodedContent =
                 Buffer.from(
@@ -2869,16 +2875,22 @@ app.post(
                 resellingStart +
                 closingMatch.index;
 
-            const updatedContent =
-                githubFile.content.slice(
-                    0,
-                    resellingEnd
-                ) +
-                '\n' +
-                productCode +
-                githubFile.content.slice(
-                    resellingEnd
-                );
+            const beforeResellingEnd =
+    githubFile.content.slice(
+        0,
+        resellingEnd
+    ).replace(
+        /}\s*$/,
+        '},'
+    );
+
+const updatedContent =
+    beforeResellingEnd +
+    '\n' +
+    productCode +
+    githubFile.content.slice(
+        resellingEnd
+    );
 
             const encodedContent =
                 Buffer.from(
