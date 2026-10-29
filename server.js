@@ -1774,13 +1774,13 @@ function buildProductCode({
             price || ''
         ).trim() || '₹0';
 
-    const imageUrls =
-        String(image || '')
-            .split(/\r?\n|,/)
-            .map(x =>
-                x.trim()
-            )
-            .filter(Boolean);
+    
+const imageUrls =
+    String(image || '')
+        .split(/\r?\n/)
+        .map(x => x.trim())
+        .filter(Boolean);
+
 
     const uniqueImages =
         [
